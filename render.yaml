@@ -1,0 +1,13 @@
+services:
+  - type: worker
+    name: jayamoney-bot
+    runtime: python
+    buildCommand: bash build.sh
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
