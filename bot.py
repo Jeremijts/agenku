@@ -4,9 +4,11 @@ import re
 import json
 import time
 import base64
+import threading
 import telebot
 import gspread
 import pdfplumber
+from flask import Flask
 from pdf2image import convert_from_bytes
 from telebot import types
 from gspread.exceptions import WorksheetNotFound
@@ -1572,6 +1574,31 @@ def handle_text(message):
 # ==========================================
 # 20. JALANKAN BOT
 # ==========================================
-if __name__ == "__main__":
-    print("🤖 Bot JayaMoney aktif! Tekan Ctrl+C untuk berhenti.")
+
+# Flask app untuk bikin Render happy (Web Service butuh port terbuka)
+flask_app = Flask(__name__)
+
+@flask_app.route("/")
+def index():
+    return "🤖 JayaMoney is running!", 200
+
+@flask_app.route("/health")
+def health():
+    return {"status": "ok", "bot": "JayaMoney", "time": datetime.now().isoformat()}, 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host="0.0.0.0", port=port)
+
+def run_bot():
+    print("🤖 Bot JayaMoney aktif!")
     bot.infinity_polling()
+
+if __name__ == "__main__":
+    # Jalankan Flask di thread terpisah supaya port ke-detect Render
+    t_flask = threading.Thread(target=run_flask, daemon=True)
+    t_flask.start()
+    print(f"🌐 Flask health server jalan di port {os.environ.get('PORT', 8080)}")
+
+    # Bot jalan di main thread
+    run_bot()
