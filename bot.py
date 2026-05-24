@@ -4,11 +4,9 @@ import re
 import json
 import time
 import base64
-import threading
 import telebot
 import gspread
 import pdfplumber
-from flask import Flask
 from pdf2image import convert_from_bytes
 from telebot import types
 from gspread.exceptions import WorksheetNotFound
@@ -67,26 +65,33 @@ COL_WIDTHS  = [110, 80, 110, 170, 170, 140, 260, 130]
 # 3. SETUP GOOGLE SHEETS
 # ==========================================
 BASE_DIR        = os.path.dirname(os.path.abspath(__file__))
+file_kredensial = os.path.join(BASE_DIR, 'credentials.json')
 spreadsheet_obj = None
 
 def get_credentials():
+    global file_kredensial
     scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
-    # Prioritas 1: env var GOOGLE_CREDENTIALS_JSON (isi JSON as string)
+
+    # Prioritas 1: env var GOOGLE_CREDENTIALS_JSON (Render/production)
     creds_json_str = os.environ.get("GOOGLE_CREDENTIALS_JSON")
     if creds_json_str:
-        import tempfile
         creds_dict = json.loads(creds_json_str)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
-            json.dump(creds_dict, tmp)
-            tmp_path = tmp.name
-        creds = ServiceAccountCredentials.from_json_keyfile_name(tmp_path, scope)
-        os.unlink(tmp_path)
+        # Fix \\n → \n di private key (rusak saat paste ke Render env var)
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        print("✅ Credentials dari ENV (Render)")
         return gspread.authorize(creds)
-    # Prioritas 2: file credentials.json lokal (untuk dev)
-    file_kredensial = os.path.join(BASE_DIR, 'credentials.json')
+
+    # Prioritas 2: file lokal (Windows dev)
     if not os.path.exists(file_kredensial):
-        raise FileNotFoundError("Set env var GOOGLE_CREDENTIALS_JSON atau sediakan credentials.json")
+        alt = os.path.join(BASE_DIR, 'credentials.json.json')
+        if os.path.exists(alt):
+            file_kredensial = alt
+        else:
+            raise FileNotFoundError(f"credentials.json tidak ditemukan di: {BASE_DIR}")
     creds = ServiceAccountCredentials.from_json_keyfile_name(file_kredensial, scope)
+    print("✅ Credentials dari FILE (lokal)")
     return gspread.authorize(creds)
 
 def setup_sheet(ws, spreadsheet):
@@ -1574,31 +1579,6 @@ def handle_text(message):
 # ==========================================
 # 20. JALANKAN BOT
 # ==========================================
-
-# Flask app untuk bikin Render happy (Web Service butuh port terbuka)
-flask_app = Flask(__name__)
-
-@flask_app.route("/")
-def index():
-    return "🤖 JayaMoney is running!", 200
-
-@flask_app.route("/health")
-def health():
-    return {"status": "ok", "bot": "JayaMoney", "time": datetime.now().isoformat()}, 200
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host="0.0.0.0", port=port)
-
-def run_bot():
-    print("🤖 Bot JayaMoney aktif!")
-    bot.infinity_polling()
-
 if __name__ == "__main__":
-    # Jalankan Flask di thread terpisah supaya port ke-detect Render
-    t_flask = threading.Thread(target=run_flask, daemon=True)
-    t_flask.start()
-    print(f"🌐 Flask health server jalan di port {os.environ.get('PORT', 8080)}")
-
-    # Bot jalan di main thread
-    run_bot()
+    print("🤖 Bot JayaMoney aktif! Tekan Ctrl+C untuk berhenti.")
+    bot.infinity_polling()
