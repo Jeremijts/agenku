@@ -18,8 +18,13 @@ from collections import defaultdict
 # ==========================================
 # 1. KONFIGURASI API
 # ==========================================
-TOKEN          = os.environ["TELEGRAM_BOT_TOKEN"]
-GROQ_KEY       = os.environ["GROQ_API_KEY"]
+TOKEN    = os.environ.get("TELEGRAM_BOT_TOKEN")
+GROQ_KEY = os.environ.get("GROQ_API_KEY")
+
+if not TOKEN:
+    raise RuntimeError("❌ TELEGRAM_BOT_TOKEN tidak diset!")
+if not GROQ_KEY:
+    raise RuntimeError("❌ GROQ_API_KEY tidak diset!")
 
 bot         = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
@@ -1579,6 +1584,26 @@ def handle_text(message):
 # ==========================================
 # 20. JALANKAN BOT
 # ==========================================
+import threading
+from flask import Flask
+
+flask_app = Flask(__name__)
+
+@flask_app.route("/")
+def index():
+    return "🤖 JayaMoney is running!", 200
+
+@flask_app.route("/health")
+def health():
+    return {"status": "ok"}, 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host="0.0.0.0", port=port, use_reloader=False)
+
 if __name__ == "__main__":
-    print("🤖 Bot JayaMoney aktif! Tekan Ctrl+C untuk berhenti.")
+    t = threading.Thread(target=run_flask, daemon=True)
+    t.start()
+    print(f"🌐 Flask aktif di port {os.environ.get('PORT', 8080)}")
+    print("🤖 Bot JayaMoney aktif!")
     bot.infinity_polling()
